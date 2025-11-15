@@ -1,24 +1,18 @@
 import sqlite3
 from datetime import datetime
 try:
-    import matplotlib.pyplot as plt # pyright: ignore[reportMissingModuleSource]
+    import matplotlib.pyplot as plt
 except ImportError:
     plt = None
 
-# Configurações do Banco de Dados
+# Configurações do Banco
 DB_FILE = "estoque.db"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 def conectar_db():
-    """Retorna uma conexão com o banco de dados."""
     return sqlite3.connect(DB_FILE)
 
 def criar_banco():
-    """
-    Cria as tabelas 'itens' e 'movimentos' caso não existam.
-    'itens': armazena os produtos cadastrados
-    'movimentos': registra entradas e saídas de estoque
-    """
     conn = conectar_db()
     cursor = conn.cursor()
     
@@ -50,267 +44,340 @@ def criar_banco():
     conn.commit()
     conn.close()
 
-# Funções de cálculo e utilitários
+# =========================================================
+# Funções Auxiliares
+# =========================================================
 
 def calcular_valor_total(conn):
-    """
-    Calcula o valor total do estoque somando quantidade * valor unitário de cada item.
-    """
     cur = conn.cursor()
     cur.execute("SELECT quantidade, valor_unitario FROM itens;")
-    total = sum((q or 0.0) * (vu or 0.0) for q, vu in cur.fetchall())
-    return total
+    return sum((q or 0) * (v or 0) for q, v in cur.fetchall())
 
 def entrada_float(prompt, minimo=None):
-    """
-    Solicita ao usuário a entrada de um número float.
-    Reexibe até que o valor seja válido e maior que 'minimo', se definido.
-    """
     while True:
-        val = input(prompt).replace(",", ".").strip()
+        valor = input(prompt).replace(",", ".").strip()
         try:
-            x = float(val)
-            if minimo is not None and x < minimo:
-                print(f"Valor deve ser >= {minimo}.")
+            f = float(valor)
+            if minimo is not None and f < minimo:
+                print(f"Valor deve ser >= {minimo}")
                 continue
-            return x
+            return f
         except ValueError:
-            print("Entrada inválida. Digite um número válido.")
+            print("Entrada inválida.")
 
 def exibir_item(row):
-    """
-    Recebe uma tupla de item e exibe seus detalhes de forma formatada.
-    """
     _id, nome, cat, un, qtd, vu = row
-    total_item = (qtd or 0.0) * (vu or 0.0)
-    print(f"[{_id}] {nome} | Categoria: {cat} | Unidade: {un} | Quantidade: {qtd:.3f} | "
-          f"Valor Unitário: R$ {vu:,.2f} | Total Item: R$ {total_item:,.2f}")
+    total = qtd * vu
+    alerta = "⚠ ESTOQUE BAIXO" if qtd < 5 else ""
+    print(f"[{_id}] {nome} | Cat: {cat} | Un: {un} | Qtd: {qtd:.2f} | "
+          f"Vlr Unit: R$ {vu:.2f} | Total: R$ {total:.2f} {alerta}")
 
-# Funções de Operações
+# =========================================================
+# 1. Cadastro de Itens
+# =========================================================
 
 def cadastrar_item():
-    """Cadastra um novo item no estoque e registra movimentação inicial."""
     print("\n=== Cadastro de Item ===")
-    nome = input("Nome do item: ").strip()
-    categoria = input("Categoria: ").strip()
-    unidade = input("Unidade (ex: un, kg, L): ").strip()
-    quantidade = entrada_float("Quantidade inicial: ", minimo=0.0)
-    valor_unitario = entrada_float("Valor unitário (R$): ", minimo=0.0)
-    
+    nome = input("Nome: ")
+    cat = input("Categoria: ")
+    un = input("Unidade (un, kg, L...): ")
+    qtd = entrada_float("Quantidade inicial: ", minimo=0)
+    vu = entrada_float("Valor unitário: R$ ", minimo=0)
+
     conn = conectar_db()
     cur = conn.cursor()
-    
-    # Insere o item na tabela 'itens'
+
     cur.execute("""
-        INSERT INTO itens (nome, categoria, unidade, quantidade, valor_unitario)
-        VALUES (?, ?, ?, ?, ?);
-    """, (nome, categoria, unidade, quantidade, valor_unitario))
-    
+        INSERT INTO itens(nome, categoria, unidade, quantidade, valor_unitario)
+        VALUES (?, ?, ?, ?, ?)
+    """, (nome, cat, un, qtd, vu))
+
     item_id = cur.lastrowid
     now = datetime.now().strftime(DATE_FORMAT)
     total_estoque = calcular_valor_total(conn)
-    
-    # Registra a movimentação inicial
+
     cur.execute("""
-        INSERT INTO movimentos (item_id, tipo, quantidade, valor_unitario, datahora, estoque_qtd_após, total_estoque_após)
-        VALUES (?, 'init', ?, ?, ?, ?, ?);
-    """, (item_id, quantidade, valor_unitario, now, quantidade, total_estoque))
-    
+        INSERT INTO movimentos(item_id, tipo, quantidade, valor_unitario, datahora, estoque_qtd_após, total_estoque_após)
+        VALUES (?, 'init', ?, ?, ?, ?, ?)
+    """, (item_id, qtd, vu, now, qtd, total_estoque))
+
     conn.commit()
     conn.close()
-    print("Item cadastrado com sucesso!")
+
+    print("✔ Item cadastrado com sucesso!")
+
+# =========================================================
+# 2. Listagem
+# =========================================================
 
 def listar_itens():
-    """Exibe todos os itens cadastrados no estoque."""
     print("\n=== Itens Cadastrados ===")
+
     conn = conectar_db()
     cur = conn.cursor()
-    cur.execute("SELECT id, nome, categoria, unidade, quantidade, valor_unitario FROM itens ORDER BY id;")
+    cur.execute("SELECT * FROM itens ORDER BY id;")
     rows = cur.fetchall()
     conn.close()
+
     if not rows:
         print("Nenhum item cadastrado.")
-        return
-    for r in rows:
-        exibir_item(r)
+    else:
+        for r in rows:
+            exibir_item(r)
+
+# =========================================================
+# 3. Buscar Itens
+# =========================================================
 
 def buscar_itens():
-    """Busca itens por nome ou categoria contendo o termo fornecido pelo usuário."""
-    print("\n=== Buscar Itens ===")
-    termo = input("Buscar por (nome ou categoria): ").strip()
+    termo = input("\nBuscar termo (nome/categoria): ").strip()
     conn = conectar_db()
     cur = conn.cursor()
+
     cur.execute("""
-        SELECT id, nome, categoria, unidade, quantidade, valor_unitario
-        FROM itens
+        SELECT * FROM itens 
         WHERE nome LIKE ? OR categoria LIKE ?
-        ORDER BY nome;
     """, (f"%{termo}%", f"%{termo}%"))
+
     rows = cur.fetchall()
     conn.close()
+
     if not rows:
         print("Nenhum item encontrado.")
+    else:
+        for r in rows:
+            exibir_item(r)
+
+# =========================================================
+# 4. Excluir Item
+# =========================================================
+
+def excluir_item():
+    print("\n=== Excluir Item ===")
+
+    conn = conectar_db()
+    cur = conn.cursor()
+
+    listar_itens()
+    try:
+        item_id = int(input("ID do item a excluir: "))
+    except ValueError:
+        print("ID inválido.")
         return
-    for r in rows:
-        exibir_item(r)
+
+    cur.execute("SELECT nome FROM itens WHERE id = ?", (item_id,))
+    if not cur.fetchone():
+        print("Item não encontrado.")
+        conn.close()
+        return
+
+    cur.execute("DELETE FROM movimentos WHERE item_id = ?", (item_id,))
+    cur.execute("DELETE FROM itens WHERE id = ?", (item_id,))
+    conn.commit()
+    conn.close()
+
+    print("✔ Item excluído com sucesso!")
+
+# =========================================================
+# 5. Movimentação
+# =========================================================
 
 def selecionar_item(conn):
-    """
-    Exibe todos os itens com ID e solicita ao usuário escolher um.
-    Retorna o ID do item selecionado ou None se não houver itens.
-    """
     cur = conn.cursor()
-    cur.execute("SELECT id, nome FROM itens ORDER BY id;")
+    cur.execute("SELECT id, nome FROM itens;")
     rows = cur.fetchall()
+
     if not rows:
-        print("Não há itens cadastrados.")
+        print("Nenhum item cadastrado.")
         return None
-    print("\nSelecione o item pelo ID:")
+
     for _id, nome in rows:
         print(f"[{_id}] {nome}")
+
     while True:
         try:
-            alvo = int(input("ID do item: ").strip())
-            cur.execute("SELECT id FROM itens WHERE id = ?;", (alvo,))
+            i = int(input("Escolha o ID: "))
+            cur.execute("SELECT id FROM itens WHERE id=?", (i,))
             if cur.fetchone():
-                return alvo
-            print("ID inválido.")
+                return i
+            print("ID não encontrado.")
         except ValueError:
-            print("Digite um número inteiro para o ID.")
+            print("Digite um número.")
 
 def movimentar_estoque():
-    """Realiza entrada ou saída de produtos no estoque."""
-    print("\n=== Movimentação de Estoque ===")
+    print("\n=== Movimentar Estoque ===")
     conn = conectar_db()
-    try:
-        item_id = selecionar_item(conn)
-        if item_id is None:
-            conn.close()
-            return
-        
-        tipo = ""
-        while tipo not in ("E", "S"):
-            tipo = input("Tipo (E = Entrada | S = Saída): ").strip().upper()
-        
-        qtd_mov = entrada_float("Quantidade: ", minimo=0.0)
-        cur = conn.cursor()
-        cur.execute("SELECT quantidade, valor_unitario FROM itens WHERE id = ?;", (item_id,))
-        row = cur.fetchone()
-        if not row:
-            print("Item não encontrado.")
-            conn.close()
-            return
-        
-        qtd_atual, valor_unit = row
-        if tipo == "E":
-            nova_qtd = qtd_atual + qtd_mov
-            mov_tipo = "entrada"
-        else:
-            if qtd_mov > qtd_atual:
-                print(f"Erro: saída maior que estoque atual ({qtd_atual}). Operação cancelada.")
-                conn.close()
-                return
-            nova_qtd = qtd_atual - qtd_mov
-            mov_tipo = "saida"
-        
-        # Atualiza a quantidade no estoque
-        cur.execute("""
-            UPDATE itens SET quantidade = ?, valor_unitario = ?
-            WHERE id = ?;
-        """, (nova_qtd, valor_unit, item_id))
-        
-        total_estoque_após = calcular_valor_total(conn)
-        now = datetime.now().strftime(DATE_FORMAT)
-        
-        # Registra a movimentação
-        cur.execute("""
-            INSERT INTO movimentos (item_id, tipo, quantidade, valor_unitario, datahora, estoque_qtd_após, total_estoque_após)
-            VALUES (?, ?, ?, ?, ?, ?, ?);
-        """, (item_id, mov_tipo, qtd_mov, valor_unit, now, nova_qtd, total_estoque_após))
-        
-        conn.commit()
-        print("Movimentação registrada com sucesso!")
-    finally:
+
+    item_id = selecionar_item(conn)
+    if item_id is None:
         conn.close()
+        return
+
+    tipo = ""
+    while tipo not in ("E", "S"):
+        tipo = input("Tipo (E=Entrada / S=Saída): ").upper().strip()
+
+    qtd = entrada_float("Quantidade: ", minimo=0)
+
+    cur = conn.cursor()
+    cur.execute("SELECT quantidade, valor_unitario FROM itens WHERE id = ?", (item_id,))
+    qtd_atual, vu = cur.fetchone()
+
+    if tipo == "S" and qtd > qtd_atual:
+        print("Saída maior que estoque atual.")
+        conn.close()
+        return
+
+    nova_qtd = qtd_atual + qtd if tipo == "E" else qtd_atual - qtd
+    mov_tipo = "entrada" if tipo == "E" else "saida"
+
+    cur.execute("UPDATE itens SET quantidade=? WHERE id=?", (nova_qtd, item_id))
+    total_estoque = calcular_valor_total(conn)
+    now = datetime.now().strftime(DATE_FORMAT)
+
+    cur.execute("""
+        INSERT INTO movimentos(item_id, tipo, quantidade, valor_unitario, datahora, estoque_qtd_após, total_estoque_após)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (item_id, mov_tipo, qtd, vu, now, nova_qtd, total_estoque))
+
+    conn.commit()
+    conn.close()
+
+    print("✔ Movimentação concluída!")
 
 # =========================================================
-# Dashboard com gráficos
+# 6. Relatórios Gerenciais
 # =========================================================
-def dashboard():
-    """Exibe gráficos de evolução do estoque (linha) e valor por categoria (barras)."""
-    print("\n=== Dashboard ===")
-    if plt is None:
-        print("O módulo matplotlib não está instalado. Instale com: pip install matplotlib")
-        return
-    
+
+def relatorios_gerenciais():
+    print("\n=== RELATÓRIOS GERENCIAIS ===")
+
     conn = conectar_db()
     cur = conn.cursor()
-    
-    # ===== Gráfico de linha: evolução do valor total do estoque =====
-    cur.execute("SELECT datahora, total_estoque_após FROM movimentos ORDER BY datetime(datahora);")
-    movs = cur.fetchall()
-    if not movs:
-        print("Sem movimentações para exibir.")
+
+    # Custo total
+    custo_total = calcular_valor_total(conn)
+
+    # Itens com estoque baixo
+    cur.execute("SELECT * FROM itens WHERE quantidade < 5;")
+    baixos = cur.fetchall()
+
+    # Giro de estoque = total de saídas
+    cur.execute("SELECT SUM(quantidade) FROM movimentos WHERE tipo='saida';")
+    giro = cur.fetchone()[0] or 0
+
+    # Tempo médio de reposição
+    cur.execute("""
+        SELECT julianday(MAX(datahora)) - julianday(MIN(datahora))
+        FROM movimentos
+    """)
+    dias = cur.fetchone()[0]
+    tempo_medio = dias / giro if giro > 0 else 0
+
+    # Estoque de segurança (modelo simples)
+    estoque_seg = giro * 0.1  
+
+    print(f"✔ Custo total em estoque: R$ {custo_total:.2f}")
+    print(f"✔ Giro de estoque: {giro:.2f}")
+    print(f"✔ Estoque de segurança sugerido: {estoque_seg:.2f}")
+    print(f"✔ Tempo médio de reposição: {tempo_medio:.2f} dias\n")
+
+    print("=== Itens com Estoque Baixo (<5) ===")
+    if not baixos:
+        print("Nenhum produto crítico.")
     else:
-        datas_total = [datetime.strptime(d, DATE_FORMAT) for d, _ in movs]
-        valores_total = [v for _, v in movs]
-        plt.figure()
-        plt.plot(datas_total, valores_total, marker='o', linestyle='-', color='blue')
-        plt.xlabel("Data/Hora")
-        plt.ylabel("Valor total do estoque (R$)")
-        plt.title("Evolução do Valor Total do Estoque")
-        plt.gcf().autofmt_xdate()
-        plt.tight_layout()
-        plt.show()
-    
-    # ===== Gráfico de barras: valor total por categoria =====
-    cur.execute("SELECT categoria, SUM(quantidade * valor_unitario) FROM itens GROUP BY categoria;")
-    cat_vals = cur.fetchall()
-    if cat_vals:
-        categorias = [c for c, _ in cat_vals]
-        valores = [v for _, v in cat_vals]
-        plt.figure()
-        plt.bar(categorias, valores, color='green')
-        plt.xlabel("Categoria")
-        plt.ylabel("Valor total (R$)")
-        plt.title("Valor Total por Categoria")
-        plt.tight_layout()
-        plt.show()
-    
+        for r in baixos:
+            exibir_item(r)
+
     conn.close()
 
 # =========================================================
-# Menu principal
+# 7. Dashboard
 # =========================================================
+
+def dashboard():
+    if plt is None:
+        print("Matplotlib não instalado.")
+        return
+
+    conn = conectar_db()
+    cur = conn.cursor()
+
+    # --- Evolução do Estoque ---
+    cur.execute("SELECT datahora, total_estoque_após FROM movimentos ORDER BY datahora;")
+    dados = cur.fetchall()
+
+    if dados:
+        datas = [datetime.strptime(d, DATE_FORMAT) for d, _ in dados]
+        valores = [v for _, v in dados]
+
+        plt.figure()
+        plt.plot(datas, valores, marker="o")
+        plt.title("Evolução do Valor Total do Estoque")
+        plt.xlabel("Data/Hora")
+        plt.ylabel("Valor (R$)")
+        plt.tight_layout()
+        plt.show()
+
+    # --- Curva ABC ---
+    cur.execute("SELECT nome, quantidade * valor_unitario AS total FROM itens;")
+    items = cur.fetchall()
+
+    if items:
+        items.sort(key=lambda x: x[1], reverse=True)
+
+        nomes = [x[0] for x in items]
+        valores = [x[1] for x in items]
+
+        plt.figure()
+        plt.bar(nomes, valores)
+        plt.title("Curva ABC - Valor Acumulado por Produto")
+        plt.xlabel("Produto")
+        plt.ylabel("Valor (R$)")
+        plt.xticks(rotation=30)
+        plt.tight_layout()
+        plt.show()
+
+    conn.close()
+
+# =========================================================
+# 8. Menu
+# =========================================================
+
 def menu():
-    """Exibe o menu principal e chama funções correspondentes à escolha do usuário."""
     while True:
         print("\n=== SISTEMA DE ESTOQUE ===")
         print("1) Cadastrar item")
         print("2) Listar itens")
         print("3) Buscar itens")
         print("4) Movimentar estoque")
-        print("5) Dashboard")
+        print("5) Relatórios gerenciais")
+        print("6) Dashboard")
+        print("7) Excluir item")
         print("0) Sair")
-        escolha = input("Escolha uma opção: ").strip()
-        
-        if escolha == "1":
+        opc = input("Opção: ").strip()
+
+        if opc == "1":
             cadastrar_item()
-        elif escolha == "2":
+        elif opc == "2":
             listar_itens()
-        elif escolha == "3":
+        elif opc == "3":
             buscar_itens()
-        elif escolha == "4":
+        elif opc == "4":
             movimentar_estoque()
-        elif escolha == "5":
+        elif opc == "5":
+            relatorios_gerenciais()
+        elif opc == "6":
             dashboard()
-        elif escolha == "0":
-            print("Saindo do sistema...")
+        elif opc == "7":
+            excluir_item()
+        elif opc == "0":
+            print("Encerrando...")
             break
         else:
             print("Opção inválida.")
 
-# Execução principal
+# Execução
 if __name__ == "__main__":
     criar_banco()
     menu()
