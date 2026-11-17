@@ -13,6 +13,7 @@ Módulo de estoque de um ERP, em Python, com banco **SQLite**: cadastro de itens
 | 5. Relatórios gerenciais | Custo total em estoque, giro (total de saídas), estoque de segurança sugerido, tempo médio de reposição e itens críticos |
 | 6. Dashboard | Gráficos da evolução do valor do estoque e da curva ABC por produto (requer `matplotlib`) |
 | 7. Excluir item | Remove o item e o histórico de movimentos dele |
+| 8. Exportar CSV | Gera uma planilha com os itens, o valor total e a situação de cada um (separador `;` e vírgula decimal, que o Excel em português abre direto) |
 
 Valores aceitam vírgula ou ponto como separador decimal.
 
@@ -38,4 +39,3 @@ pip install matplotlib
 ## Melhorias futuras
 
 - Interface gráfica ou API web.
-- Exportação dos relatórios em CSV.
