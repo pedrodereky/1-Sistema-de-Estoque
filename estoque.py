@@ -1,3 +1,4 @@
+import csv
 import sqlite3
 from datetime import datetime
 try:
@@ -368,7 +369,35 @@ def dashboard():
     conn.close()
 
 # =========================================================
-# 8. Menu
+# 8. Exportar CSV
+# =========================================================
+
+def exportar_csv(caminho="estoque.csv"):
+    """
+    Exporta os itens para CSV (separador ';' e vírgula decimal, que o Excel
+    em português abre direto), com valor total e situação de cada item.
+    Devolve a quantidade de itens exportados.
+    """
+    conn = conectar_db()
+    rows = conn.execute(
+        "SELECT id, nome, categoria, unidade, quantidade, valor_unitario, estoque_minimo FROM itens ORDER BY id"
+    ).fetchall()
+    conn.close()
+
+    def br(valor):
+        return f"{valor:.2f}".replace(".", ",")
+
+    with open(caminho, "w", newline="", encoding="utf-8-sig") as arquivo:
+        escritor = csv.writer(arquivo, delimiter=";")
+        escritor.writerow(["ID", "Nome", "Categoria", "Unidade", "Quantidade", "Valor unitário",
+                           "Valor total", "Estoque mínimo", "Situação"])
+        for _id, nome, cat, un, qtd, vu, minimo in rows:
+            situacao = "Estoque baixo" if qtd < minimo else "OK"
+            escritor.writerow([_id, nome, cat, un, br(qtd), br(vu), br(qtd * vu), br(minimo), situacao])
+    return len(rows)
+
+# =========================================================
+# 9. Menu
 # =========================================================
 
 def menu():
@@ -381,6 +410,7 @@ def menu():
         print("5) Relatórios gerenciais")
         print("6) Dashboard")
         print("7) Excluir item")
+        print("8) Exportar CSV")
         print("0) Sair")
         opc = input("Opção: ").strip()
 
@@ -398,6 +428,9 @@ def menu():
             dashboard()
         elif opc == "7":
             excluir_item()
+        elif opc == "8":
+            caminho = input("Arquivo (Enter = estoque.csv): ").strip() or "estoque.csv"
+            print(f"✔ {exportar_csv(caminho)} item(ns) exportado(s) para {caminho}")
         elif opc == "0":
             print("Encerrando...")
             break

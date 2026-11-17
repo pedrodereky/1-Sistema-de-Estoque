@@ -148,3 +148,14 @@ def test_tempo_medio_sem_reposicao_e_none():
     registrar(1, "saida", "2026-01-09 08:00:00")
     with sqlite3.connect(estoque.DB_FILE) as conn:
         assert estoque.tempo_medio_reposicao(conn) is None
+
+
+def test_exportar_csv(monkeypatch, tmp_path):
+    responder(monkeypatch, "Arroz; tipo 1", "Alimentos", "kg", "3", "5,50", "4")
+    estoque.cadastrar_item()
+    destino = tmp_path / "saida.csv"
+    assert estoque.exportar_csv(str(destino)) == 1
+    linhas = destino.read_text(encoding="utf-8-sig").splitlines()
+    assert linhas[0].startswith("ID;Nome;Categoria")
+    # Nome com ";" fica entre aspas; valores com vírgula decimal.
+    assert linhas[1] == '1;"Arroz; tipo 1";Alimentos;kg;3,00;5,50;16,50;4,00;Estoque baixo'
