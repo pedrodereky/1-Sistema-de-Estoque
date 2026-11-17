@@ -155,9 +155,6 @@ def buscar_itens():
 def excluir_item():
     print("\n=== Excluir Item ===")
 
-    conn = conectar_db()
-    cur = conn.cursor()
-
     listar_itens()
     try:
         item_id = int(input("ID do item a excluir: "))
@@ -165,6 +162,8 @@ def excluir_item():
         print("ID inválido.")
         return
 
+    conn = conectar_db()
+    cur = conn.cursor()
     cur.execute("SELECT nome FROM itens WHERE id = ?", (item_id,))
     if not cur.fetchone():
         print("Item não encontrado.")
