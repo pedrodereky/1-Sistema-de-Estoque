@@ -28,7 +28,14 @@ python estoque.py
 O banco `estoque.db` é criado na primeira execução. Para os gráficos do dashboard:
 
 ```sh
-pip install matplotlib
+pip install -r requirements.txt
+```
+
+Para rodar os testes:
+
+```sh
+pip install -r requirements-dev.txt
+pytest
 ```
 
 ## Banco de dados
