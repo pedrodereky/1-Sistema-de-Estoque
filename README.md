@@ -6,8 +6,8 @@ Módulo de estoque de um ERP, em Python, com banco **SQLite**: cadastro de itens
 
 | Menu | O que faz |
 |---|---|
-| 1. Cadastrar item | Nome, categoria, unidade (un, kg, L…), quantidade inicial e valor unitário |
-| 2. Listar itens | Todos os itens, com valor total e alerta de **estoque baixo** (menos de 5 unidades) |
+| 1. Cadastrar item | Nome, categoria, unidade (un, kg, L…), quantidade inicial, valor unitário e estoque mínimo (padrão 5) |
+| 2. Listar itens | Todos os itens, com valor total e alerta de **estoque baixo** (abaixo do estoque mínimo do item) |
 | 3. Buscar itens | Busca parcial por nome ou categoria |
 | 4. Movimentar estoque | Entrada ou saída, sem permitir saída maior que o saldo; cada movimento fica registrado com data, hora e saldo resultante |
 | 5. Relatórios gerenciais | Custo total em estoque, giro (total de saídas), estoque de segurança sugerido, tempo médio de reposição e itens críticos |
@@ -32,11 +32,10 @@ pip install matplotlib
 
 ## Banco de dados
 
-- **`itens`**: id, nome, categoria, unidade, quantidade e valor unitário.
+- **`itens`**: id, nome, categoria, unidade, quantidade, valor unitário e estoque mínimo.
 - **`movimentos`**: cada cadastro, entrada e saída, com a quantidade, o valor, a data e hora e o saldo do item e do estoque depois do movimento. É o histórico que alimenta o relatório e o gráfico de evolução.
 
 ## Melhorias futuras
 
 - Interface gráfica ou API web.
 - Exportação dos relatórios em CSV.
-- Estoque mínimo configurável por item, no lugar do limite fixo de 5.
