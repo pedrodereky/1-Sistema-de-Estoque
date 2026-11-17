@@ -1,0 +1,2 @@
+# Opcional: gráficos do dashboard (opção 6 do menu)
+matplotlib>=3.7
