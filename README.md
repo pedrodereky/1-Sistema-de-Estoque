@@ -1,5 +1,7 @@
 # Sistema de Gestão de Estoque (ERP Simulado)
 
+[![Testes](https://github.com/pedrodereky/1-Sistema-de-Estoque/actions/workflows/testes.yml/badge.svg)](https://github.com/pedrodereky/1-Sistema-de-Estoque/actions/workflows/testes.yml)
+
 Módulo de estoque de um ERP, em Python, com banco **SQLite**: cadastro de itens, entradas e saídas com histórico, relatórios gerenciais e gráficos.
 
 ## Funcionalidades
@@ -31,7 +33,7 @@ O banco `estoque.db` é criado na primeira execução. Para os gráficos do dash
 pip install -r requirements.txt
 ```
 
-Para rodar os testes:
+Para rodar os testes (13 casos, cada um num banco SQLite temporário):
 
 ```sh
 pip install -r requirements-dev.txt
