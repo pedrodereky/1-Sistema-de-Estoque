@@ -121,3 +121,30 @@ def test_banco_antigo_ganha_a_coluna_sem_perder_dados(tmp_path, monkeypatch):
     monkeypatch.setattr(estoque, "DB_FILE", str(antigo))
     estoque.criar_banco()
     assert minimos() == [("Sal", 5.0)]
+
+
+def registrar(item_id, tipo, datahora):
+    with sqlite3.connect(estoque.DB_FILE) as conn:
+        conn.execute(
+            "INSERT INTO movimentos (item_id, tipo, quantidade, valor_unitario, datahora, estoque_qtd_após, total_estoque_após)"
+            " VALUES (?, ?, 1, 1, ?, 0, 0)", (item_id, tipo, datahora))
+
+
+def test_tempo_medio_de_reposicao_entre_entradas_do_mesmo_item():
+    # Item 1: cadastro dia 1, entradas nos dias 5 e 11 -> intervalos de 4 e 6 dias.
+    # Item 2: cadastro dia 2, entrada dia 4 -> intervalo de 2 dias. Saídas não contam.
+    registrar(1, "init", "2026-01-01 08:00:00")
+    registrar(1, "saida", "2026-01-03 08:00:00")
+    registrar(1, "entrada", "2026-01-05 08:00:00")
+    registrar(1, "entrada", "2026-01-11 08:00:00")
+    registrar(2, "init", "2026-01-02 08:00:00")
+    registrar(2, "entrada", "2026-01-04 08:00:00")
+    with sqlite3.connect(estoque.DB_FILE) as conn:
+        assert estoque.tempo_medio_reposicao(conn) == pytest.approx((4 + 6 + 2) / 3)
+
+
+def test_tempo_medio_sem_reposicao_e_none():
+    registrar(1, "init", "2026-01-01 08:00:00")
+    registrar(1, "saida", "2026-01-09 08:00:00")
+    with sqlite3.connect(estoque.DB_FILE) as conn:
+        assert estoque.tempo_medio_reposicao(conn) is None

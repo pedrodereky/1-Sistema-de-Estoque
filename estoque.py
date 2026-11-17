@@ -60,6 +60,26 @@ def calcular_valor_total(conn):
     cur.execute("SELECT quantidade, valor_unitario FROM itens;")
     return sum((q or 0) * (v or 0) for q, v in cur.fetchall())
 
+def tempo_medio_reposicao(conn):
+    """
+    Média, em dias, do intervalo entre entradas consecutivas do mesmo item
+    (o cadastro conta como a primeira entrada). None se nenhum item foi reposto.
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT item_id, datahora FROM movimentos
+        WHERE tipo IN ('init', 'entrada')
+        ORDER BY item_id, datahora
+    """)
+    intervalos = []
+    anterior = {}
+    for item_id, datahora in cur.fetchall():
+        momento = datetime.strptime(datahora, DATE_FORMAT)
+        if item_id in anterior:
+            intervalos.append((momento - anterior[item_id]).total_seconds() / 86400)
+        anterior[item_id] = momento
+    return sum(intervalos) / len(intervalos) if intervalos else None
+
 def entrada_float(prompt, minimo=None, padrao=None):
     while True:
         valor = input(prompt).replace(",", ".").strip()
@@ -276,13 +296,7 @@ def relatorios_gerenciais():
     cur.execute("SELECT SUM(quantidade) FROM movimentos WHERE tipo='saida';")
     giro = cur.fetchone()[0] or 0
 
-    # Tempo médio de reposição
-    cur.execute("""
-        SELECT julianday(MAX(datahora)) - julianday(MIN(datahora))
-        FROM movimentos
-    """)
-    dias = cur.fetchone()[0]
-    tempo_medio = dias / giro if giro > 0 else 0
+    tempo_medio = tempo_medio_reposicao(conn)
 
     # Estoque de segurança (modelo simples)
     estoque_seg = giro * 0.1  
@@ -290,7 +304,10 @@ def relatorios_gerenciais():
     print(f"✔ Custo total em estoque: R$ {custo_total:.2f}")
     print(f"✔ Giro de estoque: {giro:.2f}")
     print(f"✔ Estoque de segurança sugerido: {estoque_seg:.2f}")
-    print(f"✔ Tempo médio de reposição: {tempo_medio:.2f} dias\n")
+    if tempo_medio is None:
+        print("✔ Tempo médio de reposição: sem reposições registradas ainda\n")
+    else:
+        print(f"✔ Tempo médio de reposição: {tempo_medio:.2f} dias\n")
 
     print("=== Itens abaixo do estoque mínimo ===")
     if not baixos:
