@@ -1,45 +1,42 @@
-
 # Sistema de Gestão de Estoque (ERP Simulado)
 
-Este projeto implementa uma simulação simples de um módulo de estoque de um ERP, utilizando a linguagem Python. O objetivo é permitir o cadastro, exclusão, listagem e geração de relatórios de produtos, aplicando conceitos de gestão de estoque, como organização de itens, controle de quantidades e visualização em formato de pilha.
+Módulo de estoque de um ERP, em Python, com banco **SQLite**: cadastro de itens, entradas e saídas com histórico, relatórios gerenciais e gráficos.
 
 ## Funcionalidades
 
-* Cadastro de produtos com código, descrição, categoria e quantidade.
-* Exclusão de produtos com base no código identificador.
-* Listagem completa de todos os itens cadastrados.
-* Geração de relatórios que apresentam informações resumidas e estruturadas.
-* Visualização da estrutura de estoque em formato de pilha (último que entra, primeiro que aparece na listagem).
+| Menu | O que faz |
+|---|---|
+| 1. Cadastrar item | Nome, categoria, unidade (un, kg, L…), quantidade inicial e valor unitário |
+| 2. Listar itens | Todos os itens, com valor total e alerta de **estoque baixo** (menos de 5 unidades) |
+| 3. Buscar itens | Busca parcial por nome ou categoria |
+| 4. Movimentar estoque | Entrada ou saída, sem permitir saída maior que o saldo; cada movimento fica registrado com data, hora e saldo resultante |
+| 5. Relatórios gerenciais | Custo total em estoque, giro (total de saídas), estoque de segurança sugerido, tempo médio de reposição e itens críticos |
+| 6. Dashboard | Gráficos da evolução do valor do estoque e da curva ABC por produto (requer `matplotlib`) |
+| 7. Excluir item | Remove o item e o histórico de movimentos dele |
 
-## Tecnologias Utilizadas
+Valores aceitam vírgula ou ponto como separador decimal.
 
-* Python 3.x
-* Estruturas de dados como listas e dicionários
-* Funções organizadas para cada operação (cadastrar, excluir, listar, relatório)
+## Como executar
 
-## Estrutura Geral do Código
+Requer Python 3.8+. O SQLite já vem com o Python.
 
-O sistema é organizado em funções responsáveis por:
-
-* Inserir novos produtos
-* Remover itens existentes
-* Exibir todos os produtos
-* Exibir relatório geral do estoque
-* Mostrar a pilha de produtos de forma reversa, evidenciando o item mais recente
-
-## Como Executar
-
-1. Instale o Python 3 em seu computador.
-2. Baixe ou clone o repositório contendo o arquivo principal do sistema.
-3. Execute o programa no terminal com o comando:
-
-```
-python nome_do_arquivo.py
+```sh
+python estoque.py
 ```
 
-## Melhorias Futuras
+O banco `estoque.db` é criado na primeira execução. Para os gráficos do dashboard:
 
-* Armazenamento de dados em arquivos CSV ou JSON.
-* Implementação de movimentações de entrada e saída.
-* Criação de gráficos de controle de estoque.
-* Interface gráfica ou integração com API.
+```sh
+pip install matplotlib
+```
+
+## Banco de dados
+
+- **`itens`**: id, nome, categoria, unidade, quantidade e valor unitário.
+- **`movimentos`**: cada cadastro, entrada e saída, com a quantidade, o valor, a data e hora e o saldo do item e do estoque depois do movimento. É o histórico que alimenta o relatório e o gráfico de evolução.
+
+## Melhorias futuras
+
+- Interface gráfica ou API web.
+- Exportação dos relatórios em CSV.
+- Estoque mínimo configurável por item, no lugar do limite fixo de 5.
