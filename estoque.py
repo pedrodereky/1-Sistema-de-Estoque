@@ -8,6 +8,7 @@ except ImportError:
 # Configurações do Banco
 DB_FILE = "estoque.db"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+ESTOQUE_MINIMO_PADRAO = 5.0
 
 def conectar_db():
     return sqlite3.connect(DB_FILE)
@@ -23,9 +24,15 @@ def criar_banco():
             categoria TEXT NOT NULL,
             unidade TEXT NOT NULL,
             quantidade REAL NOT NULL DEFAULT 0.0,
-            valor_unitario REAL NOT NULL DEFAULT 0.0
+            valor_unitario REAL NOT NULL DEFAULT 0.0,
+            estoque_minimo REAL NOT NULL DEFAULT 5.0
         );
     """)
+
+    # Bancos criados antes desta versão não têm a coluna: adiciona sem perder dados.
+    colunas = [linha[1] for linha in cursor.execute("PRAGMA table_info(itens);")]
+    if "estoque_minimo" not in colunas:
+        cursor.execute("ALTER TABLE itens ADD COLUMN estoque_minimo REAL NOT NULL DEFAULT 5.0;")
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimentos (
@@ -53,9 +60,11 @@ def calcular_valor_total(conn):
     cur.execute("SELECT quantidade, valor_unitario FROM itens;")
     return sum((q or 0) * (v or 0) for q, v in cur.fetchall())
 
-def entrada_float(prompt, minimo=None):
+def entrada_float(prompt, minimo=None, padrao=None):
     while True:
         valor = input(prompt).replace(",", ".").strip()
+        if valor == "" and padrao is not None:
+            return padrao
         try:
             f = float(valor)
             if minimo is not None and f < minimo:
@@ -66,9 +75,9 @@ def entrada_float(prompt, minimo=None):
             print("Entrada inválida.")
 
 def exibir_item(row):
-    _id, nome, cat, un, qtd, vu = row
+    _id, nome, cat, un, qtd, vu, minimo = row
     total = qtd * vu
-    alerta = "⚠ ESTOQUE BAIXO" if qtd < 5 else ""
+    alerta = "⚠ ESTOQUE BAIXO" if qtd < minimo else ""
     print(f"[{_id}] {nome} | Cat: {cat} | Un: {un} | Qtd: {qtd:.2f} | "
           f"Vlr Unit: R$ {vu:.2f} | Total: R$ {total:.2f} {alerta}")
 
@@ -83,14 +92,16 @@ def cadastrar_item():
     un = input("Unidade (un, kg, L...): ")
     qtd = entrada_float("Quantidade inicial: ", minimo=0)
     vu = entrada_float("Valor unitário: R$ ", minimo=0)
+    est_min = entrada_float(f"Estoque mínimo (Enter = {ESTOQUE_MINIMO_PADRAO:g}): ",
+                            minimo=0, padrao=ESTOQUE_MINIMO_PADRAO)
 
     conn = conectar_db()
     cur = conn.cursor()
 
     cur.execute("""
-        INSERT INTO itens(nome, categoria, unidade, quantidade, valor_unitario)
-        VALUES (?, ?, ?, ?, ?)
-    """, (nome, cat, un, qtd, vu))
+        INSERT INTO itens(nome, categoria, unidade, quantidade, valor_unitario, estoque_minimo)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (nome, cat, un, qtd, vu, est_min))
 
     item_id = cur.lastrowid
     now = datetime.now().strftime(DATE_FORMAT)
@@ -258,7 +269,7 @@ def relatorios_gerenciais():
     custo_total = calcular_valor_total(conn)
 
     # Itens com estoque baixo
-    cur.execute("SELECT * FROM itens WHERE quantidade < 5;")
+    cur.execute("SELECT * FROM itens WHERE quantidade < estoque_minimo;")
     baixos = cur.fetchall()
 
     # Giro de estoque = total de saídas
@@ -281,7 +292,7 @@ def relatorios_gerenciais():
     print(f"✔ Estoque de segurança sugerido: {estoque_seg:.2f}")
     print(f"✔ Tempo médio de reposição: {tempo_medio:.2f} dias\n")
 
-    print("=== Itens com Estoque Baixo (<5) ===")
+    print("=== Itens abaixo do estoque mínimo ===")
     if not baixos:
         print("Nenhum produto crítico.")
     else:
